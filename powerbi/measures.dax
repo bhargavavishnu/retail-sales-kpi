@@ -1,0 +1,60 @@
+/* ============================================================================
+   Retail Sales & KPI Performance Analytics — Power BI DAX Measures
+   Data Model: Star Schema (fact_orders -> dim_products, dim_customers, dim_locations)
+   ============================================================================ */
+
+Total Revenue =
+SUM(fact_orders[sales])
+
+Total Profit =
+SUM(fact_orders[profit])
+
+Profit Margin % =
+DIVIDE([Total Profit], [Total Revenue], 0)
+
+Order Volume =
+DISTINCTCOUNT(fact_orders[order_id])
+
+Average Order Value =
+DIVIDE([Total Revenue], [Order Volume], 0)
+
+Total Units Sold =
+SUM(fact_orders[quantity])
+
+Average Discount % =
+AVERAGE(fact_orders[discount])
+
+Prior Year Revenue =
+CALCULATE(
+    [Total Revenue],
+    SAMEPERIODLASTYEAR(dim_date[Date])
+)
+
+YoY Revenue Growth % =
+VAR PrevRev = [Prior Year Revenue]
+RETURN
+DIVIDE([Total Revenue] - PrevRev, PrevRev, BLANK())
+
+Loss-Making Line Items =
+CALCULATE(
+    COUNTROWS(fact_orders),
+    fact_orders[profit] < 0
+)
+
+Heavy Discount Revenue (>20%) =
+CALCULATE(
+    [Total Revenue],
+    fact_orders[discount] > 0.20
+)
+
+Projected Profit After 15% Furniture Cap =
+SUMX(
+    fact_orders,
+    VAR GrossPrice = DIVIDE(fact_orders[sales], 1 - fact_orders[discount], fact_orders[sales])
+    VAR LineCost = fact_orders[sales] - fact_orders[profit]
+    VAR IsFurnitureLeak =
+        RELATED(dim_products[sub_category]) IN {"Tables", "Bookcases"} &&
+        fact_orders[discount] > 0.15
+    VAR NewSales = IF(IsFurnitureLeak, GrossPrice * 0.85, fact_orders[sales])
+    RETURN NewSales - LineCost
+)
